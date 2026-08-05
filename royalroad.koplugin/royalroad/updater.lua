@@ -29,6 +29,14 @@ local C            = require("royalroad/constants")
 local fitText      = require("royalroad/widgets").fitText
 local SCHEDULE_DELAY = C.NETWORK.SCHEDULE_DELAY
 
+local function _normalizeChapterURL(url)
+    local fiction, chapter = url:match("/fiction/(%d+)/.-/chapter/(%d+)/")
+    if fiction and chapter then
+        return fiction .. ":" .. chapter
+    end
+    return url
+end
+
 function M:_computeStoryUpdate(fiction_id, story)
     local story_html = self:fetchPage(C.BASE_URL .. "/fiction/" .. fiction_id)
     if not story_html then return nil, true end
@@ -38,18 +46,24 @@ function M:_computeStoryUpdate(fiction_id, story)
     local current_count = #current_urls
 
     local fetched_set = {}
-    for _, u in ipairs(story.chapter_urls or {}) do fetched_set[u] = true end
+    for _, u in ipairs(story.chapter_urls or {}) do
+        fetched_set[_normalizeChapterURL(u)] = true
+    end
 
     local known_set = {}
-    for _, u in ipairs(story.chapter_urls or {}) do known_set[u] = true end
-    for _, u in ipairs(story.queued_chapter_urls or {}) do known_set[u] = true end
+    for _, u in ipairs(story.chapter_urls or {}) do
+       known_set[_normalizeChapterURL(u)] = true
+    end
+    for _, u in ipairs(story.queued_chapter_urls or {}) do
+        known_set[_normalizeChapterURL(u)] = true
+    end
 
     -- Find the last position of any known URL in current_urls.
     -- This correctly handles partial/range-limited downloads where
     -- old skipped chapters appear before known ones in the full URL list.
     local last_known_pos = 0
     for i, u in ipairs(current_urls) do
-        if known_set[u] then
+        if known_set[_normalizeChapterURL(u)] then
             last_known_pos = i
         end
     end
@@ -59,7 +73,7 @@ function M:_computeStoryUpdate(fiction_id, story)
     -- detected as "new" and appended to the end of the EPUB.
     local new_urls_list = {}
     for i = last_known_pos + 1, #current_urls do
-        if not known_set[current_urls[i]] then
+        if not known_set[_normalizeChapterURL(current_urls[i])] then
             table.insert(new_urls_list, current_urls[i])
         end
     end
